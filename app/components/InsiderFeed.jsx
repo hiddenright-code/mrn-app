@@ -11,6 +11,9 @@ export default function InsiderFeed() {
   const [loading, setLoading] = useState(true)
   const [anonOn, setAnonOn] = useState(true)
   const [activeReferrals, setActiveReferrals] = useState([])
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({ visa: '', workPref: '', relocation: '', location: '', educationStatus: '' })
+  const [pendingFilters, setPendingFilters] = useState({ visa: '', workPref: '', relocation: '', location: '', educationStatus: '' })
 
   useEffect(() => {
     async function load() {
@@ -128,6 +131,29 @@ export default function InsiderFeed() {
 
   const stages = ['Submitted', 'Interviewing', 'Hired', 'Bonus']
 
+  const activeFilterCount = Object.values(filters).filter(v => v !== '').length
+
+  const filteredSeekers = seekers.filter(seeker => {
+    if (filters.visa) {
+      const noVisa = seeker.visa_status?.includes('Not required')
+      if (filters.visa === 'no_visa' && !noVisa) return false
+      if (filters.visa === 'visa_required' && noVisa) return false
+    }
+    if (filters.workPref && seeker.work_preference !== filters.workPref) return false
+    if (filters.relocation) {
+      const openToRelocate = seeker.relocate_preference && seeker.relocate_preference !== 'Not open to relocating'
+      if (filters.relocation === 'yes' && !openToRelocate) return false
+      if (filters.relocation === 'no' && openToRelocate) return false
+    }
+    if (filters.location && !seeker.current_location?.toLowerCase().includes(filters.location.toLowerCase())) return false
+    if (filters.educationStatus) {
+      const isStudent = seeker.education?.not_graduated === true
+      if (filters.educationStatus === 'student' && !isStudent) return false
+      if (filters.educationStatus === 'graduate' && isStudent) return false
+    }
+    return true
+  })
+
   const avatarColors = [
     { background: '#E1F5EE', color: '#085041' },
     { background: '#FAEEDA', color: '#633806' },
@@ -145,6 +171,195 @@ export default function InsiderFeed() {
 
   return (
     <div>
+      {/* Filter button */}
+      <div style={{ padding: '8px 16px 0', display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => { setPendingFilters({ ...filters }); setShowFilters(true) }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 14px', borderRadius: '20px', fontSize: '12px',
+            fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', fontWeight: '500',
+            background: activeFilterCount > 0 ? '#085041' : '#f9f8f5',
+            color: activeFilterCount > 0 ? '#E1F5EE' : '#888',
+            border: `0.5px solid ${activeFilterCount > 0 ? '#085041' : 'rgba(0,0,0,0.1)'}`,
+          }}
+        >
+          ⚙ Filters
+          {activeFilterCount > 0 && (
+            <span style={{
+              background: '#E1F5EE', color: '#085041',
+              borderRadius: '50%', width: '16px', height: '16px',
+              fontSize: '10px', fontWeight: '700',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Filter sheet */}
+      {showFilters && (
+        <>
+          <div
+            onClick={() => setShowFilters(false)}
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 100 }}
+          />
+          <div style={{
+            position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+            width: '100%', maxWidth: '420px', background: '#fff',
+            borderRadius: '16px 16px 0 0', padding: '20px 20px 32px',
+            zIndex: 101, maxHeight: '80vh', overflowY: 'auto',
+          }}>
+            <div style={{ width: '36px', height: '4px', borderRadius: '2px', background: '#D3D1C7', margin: '0 auto 16px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '18px', fontWeight: '500', color: '#111' }}>Filter talent</div>
+              {Object.values(pendingFilters).some(v => v !== '') && (
+                <button
+                  onClick={() => setPendingFilters({ visa: '', workPref: '', relocation: '', location: '', educationStatus: '' })}
+                  style={{ fontSize: '12px', color: '#A32D2D', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Visa filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>VISA SPONSORSHIP</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { value: '', label: 'Any' },
+                  { value: 'no_visa', label: 'US Citizen / Green Card PR' },
+                  { value: 'visa_required', label: 'Requires Sponsorship' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPendingFilters(p => ({ ...p, visa: opt.value }))}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px',
+                      fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+                      background: pendingFilters.visa === opt.value ? '#085041' : '#f9f8f5',
+                      color: pendingFilters.visa === opt.value ? '#E1F5EE' : '#888',
+                      border: `0.5px solid ${pendingFilters.visa === opt.value ? '#085041' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Work preference filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>WORK PREFERENCE</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { value: '', label: 'Any' },
+                  { value: 'Remote', label: 'Remote' },
+                  { value: 'Hybrid', label: 'Hybrid' },
+                  { value: 'In-office', label: 'In-office' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPendingFilters(p => ({ ...p, workPref: opt.value }))}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px',
+                      fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+                      background: pendingFilters.workPref === opt.value ? '#085041' : '#f9f8f5',
+                      color: pendingFilters.workPref === opt.value ? '#E1F5EE' : '#888',
+                      border: `0.5px solid ${pendingFilters.workPref === opt.value ? '#085041' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Relocation filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>OPEN TO RELOCATE</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { value: '', label: 'Any' },
+                  { value: 'yes', label: 'Yes' },
+                  { value: 'no', label: 'No' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPendingFilters(p => ({ ...p, relocation: opt.value }))}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px',
+                      fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+                      background: pendingFilters.relocation === opt.value ? '#085041' : '#f9f8f5',
+                      color: pendingFilters.relocation === opt.value ? '#E1F5EE' : '#888',
+                      border: `0.5px solid ${pendingFilters.relocation === opt.value ? '#085041' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Student vs Graduate filter */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>EDUCATION STATUS</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { value: '', label: 'Any' },
+                  { value: 'graduate', label: 'Graduate' },
+                  { value: 'student', label: 'Student' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPendingFilters(p => ({ ...p, educationStatus: opt.value }))}
+                    style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px',
+                      fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+                      background: pendingFilters.educationStatus === opt.value ? '#085041' : '#f9f8f5',
+                      color: pendingFilters.educationStatus === opt.value ? '#E1F5EE' : '#888',
+                      border: `0.5px solid ${pendingFilters.educationStatus === opt.value ? '#085041' : 'rgba(0,0,0,0.1)'}`,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Location filter */}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>LOCATION</div>
+              <input
+                value={pendingFilters.location}
+                onChange={e => setPendingFilters(p => ({ ...p, location: e.target.value }))}
+                placeholder="e.g. New York, San Francisco..."
+                style={{
+                  width: '100%', borderRadius: '8px', border: '0.5px solid rgba(0,0,0,0.2)',
+                  padding: '10px 12px', fontFamily: 'DM Sans, sans-serif', fontSize: '13px',
+                  color: '#111', outline: 'none', background: '#fff',
+                }}
+              />
+            </div>
+
+            {/* Apply button */}
+            <button
+              onClick={() => { setFilters({ ...pendingFilters }); setShowFilters(false) }}
+              style={{
+                width: '100%', padding: '13px', borderRadius: '8px',
+                background: '#085041', color: '#E1F5EE', border: 'none',
+                fontFamily: 'DM Sans, sans-serif', fontSize: '14px',
+                fontWeight: '500', cursor: 'pointer',
+              }}
+            >
+              Apply filters
+            </button>
+          </div>
+        </>
+      )}
+
       {/* Anonymity Toggle */}
       <div style={{
         margin: '10px 16px',
@@ -230,7 +445,18 @@ export default function InsiderFeed() {
         </div>
       ) : (
         <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {seekers.map((seeker, idx) => {
+          {filteredSeekers.length === 0 ? (
+            <div style={{ padding: '40px 0', textAlign: 'center', color: '#888', fontSize: '14px' }}>
+              No seekers match your filters.{' '}
+              <button
+                onClick={() => setFilters({ visa: '', workPref: '', relocation: '', location: '', educationStatus: '' })}
+                style={{ color: '#085041', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans, sans-serif', fontSize: '14px', fontWeight: '500' }}
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : null}
+          {filteredSeekers.map((seeker, idx) => {
             const user = seeker.user
             const badges = seeker.badges || []
             const avColor = avatarColors[idx % avatarColors.length]

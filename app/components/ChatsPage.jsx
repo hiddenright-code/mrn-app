@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-export default function ChatsPage({ onClose }) {
+export default function ChatsPage({ onClose, showArchived = false }) {
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState(null)
@@ -19,7 +19,7 @@ export default function ChatsPage({ onClose }) {
 
     // Single RPC call — replaces all N+1 queries
     const { data, error } = await supabase
-      .rpc('get_matches_with_meta', { p_user_id: userId })
+      .rpc('get_matches_with_meta', { p_user_id: userId, p_archived: showArchived })
 
     if (error) {
       console.error('Error loading chats:', error)

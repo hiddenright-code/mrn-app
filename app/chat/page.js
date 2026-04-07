@@ -46,7 +46,12 @@ export default function ChatPage() {
       const userIsInsider = matchData.insider_id === userId
       setIsInsider(userIsInsider)
       setMatch(matchData)
-
+      // Store which tab to return to based on match archived state
+      if (matchData.is_archived) {
+        sessionStorage.setItem('mrn_matches_tab', 'archived')
+      } else {
+        sessionStorage.setItem('mrn_matches_tab', 'active')
+      }
       const otherUserId = userIsInsider ? matchData.seeker_id : matchData.insider_id
 
       const { data: otherUserData } = await supabase
@@ -229,7 +234,7 @@ export default function ChatPage() {
       {/* Header */}
       <div style={{ background: '#085041', padding: '16px 20px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <BackButton />
+          <BackButton matchesTab={match?.is_archived ? 'archived' : 'active'} />
           {isInsider && !chatEnded && (
             <button
               onClick={() => setShowEndConfirm(true)}

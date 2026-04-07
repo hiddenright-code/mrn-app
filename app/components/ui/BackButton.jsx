@@ -1,11 +1,12 @@
 'use client'
 import { useRouter } from 'next/navigation'
 
-export default function BackButton({ label = '← Back' }) {
+export default function BackButton({ label = '← Back', matchesTab = 'active' }) {
   const router = useRouter()
 
   function handleBack() {
     sessionStorage.setItem('mrn_last_page', 'matches')
+    sessionStorage.setItem('mrn_matches_tab', matchesTab)
     window.location.href = '/'
   }
 

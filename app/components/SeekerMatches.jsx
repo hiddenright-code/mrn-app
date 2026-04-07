@@ -42,8 +42,9 @@ export default function SeekerMatches() {
     bonus_pending: 'Gift sent',
   }
 
-  const [activeTab, setActiveTab] = useState('active')
-  const activeTabRef = useRef('active')
+  const savedTab = typeof window !== 'undefined' ? (sessionStorage.getItem('mrn_matches_tab') || 'active') : 'active'
+  const [activeTab, setActiveTab] = useState(savedTab)
+  const activeTabRef = useRef(savedTab)
 
   useEffect(() => {
     activeTabRef.current = activeTab
@@ -259,7 +260,7 @@ export default function SeekerMatches() {
         </div>
       </div>
 
-      {showChats && <ChatsPage onClose={() => { setShowChats(false); load() }} />}
+      {showChats && <ChatsPage onClose={() => { setShowChats(false); load() }} showArchived={activeTab === 'archived'} />}
 
       {matches.length === 0 && pitches.length === 0 ? (
         <div style={{ padding: '40px 16px', textAlign: 'center', color: '#888', fontSize: '14px' }}>

@@ -41,8 +41,9 @@ export default function InsiderMatches() {
     bonus_pending: 'Bonus pending',
   }
 
-  const [activeTab, setActiveTab] = useState('active')
-  const activeTabRef = useRef('active')
+  const savedTab = typeof window !== 'undefined' ? (sessionStorage.getItem('mrn_matches_tab') || 'active') : 'active'
+  const [activeTab, setActiveTab] = useState(savedTab)
+  const activeTabRef = useRef(savedTab)
 
   useEffect(() => {
     activeTabRef.current = activeTab
@@ -190,7 +191,7 @@ export default function InsiderMatches() {
 
   return (
     <>
-      {showChats && <ChatsPage onClose={() => { setShowChats(false); load() }} />}
+      {showChats && <ChatsPage onClose={() => { setShowChats(false); load() }} showArchived={activeTab === 'archived'} />}
       <div>
         {/* Barakah Points */}
         <Card style={{ margin: '10px 16px 12px' }}>

@@ -472,13 +472,39 @@ function HeroSection({ profile, updateProfile }) {
           <>
             <div style={{ fontFamily: 'Playfair Display, serif', fontSize: '20px', fontWeight: '500', color: '#111', padding: '10px 16px 2px' }}>{profile.name}</div>
             <div style={{ fontSize: '13px', color: '#0F6E56', fontWeight: '500', padding: '0 16px 8px' }}>{profile.tag}</div>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              margin: '0 16px 12px', fontSize: '12px', padding: '4px 10px',
-              borderRadius: '20px', background: '#FAEEDA', color: '#633806',
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#633806', opacity: 0.7 }} />
-              {profile.status}
+            <div style={{ margin: '0 16px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                fontSize: '12px', padding: '4px 10px',
+                borderRadius: '20px',
+                background: profile.status === 'Actively seeking referrals' ? '#FAEEDA' : '#F1EFE8',
+                color: profile.status === 'Actively seeking referrals' ? '#633806' : '#888',
+              }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: profile.status === 'Actively seeking referrals' ? '#633806' : '#aaa', opacity: 0.7 }} />
+                {profile.status}
+              </div>
+              <button
+                onClick={async () => {
+                  const newStatus = profile.status === 'Actively seeking referrals'
+                    ? 'Not looking right now'
+                    : 'Actively seeking referrals'
+                  const { data: { session } } = await supabase.auth.getSession()
+                  if (!session) return
+                  await supabase
+                    .from('seeker_profiles')
+                    .update({ seeking_status: newStatus })
+                    .eq('user_id', session.user.id)
+                  updateProfile('status', newStatus)
+                }}
+                style={{
+                  fontSize: '12px', padding: '4px 12px', borderRadius: '20px',
+                  border: '0.5px solid rgba(0,0,0,0.15)', background: 'transparent',
+                  fontFamily: 'DM Sans, sans-serif', cursor: 'pointer',
+                  color: profile.status === 'Actively seeking referrals' ? '#A32D2D' : '#085041',
+                }}
+              >
+                {profile.status === 'Actively seeking referrals' ? 'Pause profile' : 'Resume profile'}
+              </button>
             </div>
             <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.08)', margin: '0 16px' }} />
             <div style={{ padding: '14px 16px' }}>
