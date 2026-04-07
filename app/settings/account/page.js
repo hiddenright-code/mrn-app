@@ -82,6 +82,25 @@ export default function AccountPage() {
       const userId = session.user.id
 
       // Delete all user data in order
+      // Delete messages in user's matches first
+      const { data: userMatches } = await supabase
+        .from('matches')
+        .select('id')
+        .or(`seeker_id.eq.${userId},insider_id.eq.${userId}`)
+
+      if (userMatches?.length > 0) {
+        const matchIds = userMatches.map(m => m.id)
+        await supabase.from('messages').delete().in('match_id', matchIds)
+        await supabase.from('matches').delete().in('id', matchIds)
+      }
+
+      // Delete pitches (as seeker or insider)
+      await supabase.from('pitches').delete().eq('seeker_id', userId)
+      await supabase.from('pitches').delete().eq('insider_id', userId)
+
+      // Delete all profile data
+      await supabase.from('notification_settings').delete().eq('user_id', userId)
+      await supabase.from('referral_vault').delete().eq('user_id', userId)
       await supabase.from('portfolio_links').delete().eq('user_id', userId)
       await supabase.from('education').delete().eq('user_id', userId)
       await supabase.from('employment').delete().eq('user_id', userId)
@@ -206,6 +225,12 @@ export default function AccountPage() {
           >
             {savingPassword ? 'Updating...' : 'Update password'}
           </button>
+        </div>
+
+        {/* Legal links */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '16px' }}>
+          <a href="/terms" style={{ fontSize: '12px', color: '#aaa', textDecoration: 'none' }}>Terms of Service</a>
+          <a href="/privacy" style={{ fontSize: '12px', color: '#aaa', textDecoration: 'none' }}>Privacy Policy</a>
         </div>
 
         {/* Delete account */}

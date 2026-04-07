@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
 import Badge from './ui/Badge'
 import Card from './ui/Card'
+import { buildInsiderProfileBadges } from '../../lib/badges'
 
 export default function InsiderProfile() {
   const [profile, setProfile] = useState(null)
@@ -61,6 +62,19 @@ export default function InsiderProfile() {
         ? barakahLog.reduce((sum, item) => sum + item.points, 0)
         : 0
 
+      // Load referral stats for badges
+      const { count: referralCount } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('insider_id', userId)
+        .in('stage', ['submitted', 'interviewing', 'hired', 'bonus_pending', 'complete'])
+
+      const { count: hireCount } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('insider_id', userId)
+        .in('stage', ['hired', 'bonus_pending', 'complete'])
+
       const logoColors = [
         { background: '#E8F0FE', color: '#1a73e8' },
         { background: '#E6F4EA', color: '#1e8e3e' },
@@ -84,6 +98,8 @@ export default function InsiderProfile() {
         barakahPoints: totalPoints,
         barakahLog: barakahLog || [],
         badges: badges || [],
+        referralCount: referralCount || 0,
+        hireCount: hireCount || 0,
         vault: vault || [],
         employment: (employment || []).map((emp, i) => ({
           ...emp,
@@ -278,6 +294,39 @@ function HeroSection({ profile, updateProfile }) {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session.user.id
 
+      // Name change logging + limit check
+      if (draft.name.trim() !== saved.name.trim()) {
+        const oneYearAgo = new Date()
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+        const { count: changeCount } = await supabase
+          .from('name_change_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('changed_at', oneYearAgo.toISOString())
+
+        if (changeCount >= 3) {
+          alert("You've reached the maximum name changes for this year.")
+          return
+        }
+
+        // Log the name change
+        await supabase.from('name_change_log').insert({
+          user_id: userId,
+          old_name: saved.name,
+          new_name: draft.name,
+        })
+
+        // Flag account on 2nd+ change
+        if (changeCount >= 1) {
+          await supabase.from('users').update({
+            is_flagged: true,
+            flag_reason: 'Multiple name changes',
+            flagged_at: new Date().toISOString(),
+          }).eq('id', userId)
+        }
+      }
+
       await supabase.from('users').update({
         full_name: draft.name,
         tag_line: draft.tag,
@@ -457,20 +506,29 @@ function HeroSection({ profile, updateProfile }) {
                 </div>
               </>
             )}
-            {profile.badges.length > 0 && (
-              <>
-                <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.08)', margin: '0 16px' }} />
-                <div style={{ padding: '14px 16px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>TRUST BADGES</div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {profile.badges.map(b => {
-                      const badge = { community_verified: { label: 'Community Verified', color: 'teal' }, top_referrer: { label: 'Top Referrer', color: 'purple' }, halal_friendly_advocate: { label: 'Halal-Friendly Advocate', color: 'amber' } }[b.badge_type]
-                      return badge ? <Badge key={b.badge_type} label={badge.label} color={badge.color} /> : null
-                    })}
+            {(() => {
+              const dynamicBadges = buildInsiderProfileBadges({
+                badges: profile.badges || [],
+                insiderProfile: { role_level: profile.roleLevel },
+                education: profile.education,
+                employment: profile.employment || [],
+                referralCount: profile.referralCount || 0,
+                hireCount: profile.hireCount || 0,
+              })
+              return dynamicBadges.length > 0 ? (
+                <>
+                  <div style={{ height: '0.5px', background: 'rgba(0,0,0,0.08)', margin: '0 16px' }} />
+                  <div style={{ padding: '14px 16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '500', color: '#888', letterSpacing: '0.06em', marginBottom: '8px' }}>BADGES</div>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {dynamicBadges.map((badge, i) => (
+                        <Badge key={i} label={badge.label} color={badge.color} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </>
-            )}
+                </>
+              ) : null
+            })()}
           </>
         )}
       </div>

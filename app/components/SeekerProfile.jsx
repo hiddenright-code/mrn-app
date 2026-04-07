@@ -237,6 +237,39 @@ function HeroSection({ profile, updateProfile }) {
       const { data: { session } } = await supabase.auth.getSession()
       const userId = session.user.id
 
+      // Name change logging + limit check
+      if (draft.name.trim() !== profile.name.trim()) {
+        const oneYearAgo = new Date()
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+        const { count: changeCount } = await supabase
+          .from('name_change_log')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('changed_at', oneYearAgo.toISOString())
+
+        if (changeCount >= 3) {
+          alert("You've reached the maximum name changes for this year.")
+          return
+        }
+
+        // Log the name change
+        await supabase.from('name_change_log').insert({
+          user_id: userId,
+          old_name: profile.name,
+          new_name: draft.name,
+        })
+
+        // Flag account on 2nd+ change
+        if (changeCount >= 1) {
+          await supabase.from('users').update({
+            is_flagged: true,
+            flag_reason: 'Multiple name changes',
+            flagged_at: new Date().toISOString(),
+          }).eq('id', userId)
+        }
+      }
+
       await supabase
         .from('users')
         .update({

@@ -175,11 +175,20 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
 
-          <div style={{ textAlign: 'center', fontSize: '13px', color: '#888' }}>
+          <div style={{ textAlign: 'center', fontSize: '13px', color: '#888', marginBottom: '12px' }}>
+            <a href="/forgot-password" style={{ color: '#085041', fontWeight: '500', textDecoration: 'none' }}>
+              Forgot password?
+            </a>
+          </div>
+          <div style={{ textAlign: 'center', fontSize: '13px', color: '#888', marginBottom: '16px' }}>
             Don't have an account?{' '}
             <a href="/register" style={{ color: '#085041', fontWeight: '500', textDecoration: 'none' }}>
               Sign up
             </a>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '20px' }}>
+            <a href="/terms" style={{ fontSize: '12px', color: '#aaa', textDecoration: 'none' }}>Terms of Service</a>
+            <a href="/privacy" style={{ fontSize: '12px', color: '#aaa', textDecoration: 'none' }}>Privacy Policy</a>
           </div>
         </div>
       </div>

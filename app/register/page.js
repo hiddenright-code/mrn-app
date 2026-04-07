@@ -30,6 +30,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [showRules, setShowRules] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
 
   const rules = useMemo(() => ({
     minLength:   password.length >= 8,
@@ -49,6 +50,10 @@ export default function RegisterPage() {
     }
     if (!allRulesMet) {
       setError('Please make sure all password rules are met.')
+      return
+    }
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms of Service and Privacy Policy to continue.')
       return
     }
 
@@ -229,17 +234,39 @@ export default function RegisterPage() {
             </div>
           )}
 
+          {/* Terms agreement checkbox */}
+          <div
+            onClick={() => setAgreedToTerms(prev => !prev)}
+            style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '16px', cursor: 'pointer' }}
+          >
+            <div style={{
+              width: '18px', height: '18px', borderRadius: '4px', flexShrink: 0, marginTop: '1px',
+              border: `2px solid ${agreedToTerms ? '#085041' : 'rgba(0,0,0,0.2)'}`,
+              background: agreedToTerms ? '#085041' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}>
+              {agreedToTerms && <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>✓</span>}
+            </div>
+            <div style={{ fontSize: '12px', color: '#555', lineHeight: '1.6' }}>
+              {'I agree to the '}
+              <a href="/terms" onClick={e => e.stopPropagation()} style={{ color: '#085041', fontWeight: '500', textDecoration: 'none' }}>Terms of Service</a>
+              {' and '}
+              <a href="/privacy" onClick={e => e.stopPropagation()} style={{ color: '#085041', fontWeight: '500', textDecoration: 'none' }}>Privacy Policy</a>
+            </div>
+          </div>
+
           <button
             onClick={handleRegister}
-            disabled={loading || !allRulesMet}
+            disabled={loading || !allRulesMet || !agreedToTerms}
             style={{
               width: '100%', padding: '13px',
               borderRadius: '8px',
-              background: !allRulesMet ? '#D3D1C7' : loading ? '#888' : '#085041',
+              background: !allRulesMet || !agreedToTerms ? '#D3D1C7' : loading ? '#888' : '#085041',
               color: '#E1F5EE', border: 'none',
               fontFamily: 'DM Sans, sans-serif',
               fontSize: '14px', fontWeight: '500',
-              cursor: !allRulesMet || loading ? 'not-allowed' : 'pointer',
+              cursor: !allRulesMet || !agreedToTerms || loading ? 'not-allowed' : 'pointer',
               marginBottom: '16px',
               transition: 'background 0.2s',
             }}

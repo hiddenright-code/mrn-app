@@ -84,16 +84,11 @@ export default function ChatPage() {
 
       setMessages(messageData || [])
 
-      // Mark all unread messages from other user as read
-      await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .eq('match_id', matchId)
-        .eq('is_read', false)
-        .neq('sender_id', userId)
-
-      // Signal to matches page that this chat was read
-      sessionStorage.setItem('mrn_chat_read', matchId)
+      // Mark messages as read via RPC — faster and confirmed before navigation
+      await supabase.rpc('mark_messages_read', {
+        p_match_id: matchId,
+        p_user_id: userId,
+      })
 
       setLoading(false)
 

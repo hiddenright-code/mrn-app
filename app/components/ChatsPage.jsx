@@ -8,95 +8,67 @@ export default function ChatsPage({ onClose }) {
   const [currentUserId, setCurrentUserId] = useState(null)
 
   useEffect(() => {
-    async function load() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      const userId = session.user.id
-      setCurrentUserId(userId)
+    load()
+  }, [])
 
-      // Load all matches with last message
-      const { data: matchData } = await supabase
-        .from('matches')
-        .select('*')
-        .or(`seeker_id.eq.${userId},insider_id.eq.${userId}`)
-        .order('created_at', { ascending: false })
+  async function load() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
+    const userId = session.user.id
+    setCurrentUserId(userId)
 
-      if (!matchData || matchData.length === 0) {
-        setChats([])
-        setLoading(false)
-        return
-      }
+    // Single RPC call — replaces all N+1 queries
+    const { data, error } = await supabase
+      .rpc('get_matches_with_meta', { p_user_id: userId })
 
-      const matchIds = matchData.map(m => m.id)
-      const otherUserIds = matchData.map(m =>
-        m.seeker_id === userId ? m.insider_id : m.seeker_id
-      )
-      const companyIds = matchData.map(m => m.company_id)
+    if (error) {
+      console.error('Error loading chats:', error)
+      setLoading(false)
+      return
+    }
 
-      // Load other users info
-      const { data: otherUsers } = await supabase
-        .from('users')
-        .select('id, full_name, avatar_url')
-        .in('id', otherUserIds)
-
-      // Load companies
-      const { data: companies } = await supabase
-        .from('companies')
-        .select('id, name')
-        .in('id', companyIds)
-
-      // Load last message for each match
-      const lastMessages = await Promise.all(
-        matchIds.map(async (matchId) => {
-          const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('match_id', matchId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-          return { matchId, message: data }
-        })
-      )
-
-      // Load unread count per match
-      const unreadCounts = await Promise.all(
-        matchIds.map(async (matchId) => {
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('match_id', matchId)
-            .eq('is_read', false)
-            .neq('sender_id', userId)
-          return { matchId, count: count || 0 }
-        })
-      )
-
-      const enriched = matchData.map(match => {
-        const otherUserId = match.seeker_id === userId ? match.insider_id : match.seeker_id
-        const lastMsg = lastMessages.find(m => m.matchId === match.id)
-        const unread = unreadCounts.find(u => u.matchId === match.id)
+    const enriched = (data || [])
+      .filter(m => m.chat_enabled || m.chat_ended) // only show chats that have started
+      .map(m => {
+        const otherUserId = m.seeker_id === userId ? m.insider_id : m.seeker_id
+        const otherUserName = m.seeker_id === userId ? m.insider_full_name : m.seeker_full_name
+        const otherUserAvatar = m.seeker_id === userId ? m.insider_avatar_url : m.seeker_avatar_url
         return {
-          ...match,
-          otherUser: otherUsers?.find(u => u.id === otherUserId) || null,
-          company: companies?.find(c => c.id === match.company_id) || null,
-          lastMessage: lastMsg?.message || null,
-          unreadCount: unread?.count || 0,
+          id: m.match_id,
+          seeker_id: m.seeker_id,
+          insider_id: m.insider_id,
+          stage: m.stage,
+          chat_enabled: m.chat_enabled,
+          chat_ended: m.chat_ended,
+          created_at: m.match_created_at,
+          unreadCount: Number(m.unread_count) || 0,
+          lastMessage: m.last_message_id ? {
+            id: m.last_message_id,
+            content: m.last_message_content,
+            sender_id: m.last_message_sender_id,
+            created_at: m.last_message_created_at,
+            is_read: m.last_message_is_read,
+          } : null,
+          otherUser: {
+            id: otherUserId,
+            full_name: otherUserName,
+            avatar_url: otherUserAvatar,
+          },
+          company: {
+            id: m.company_id,
+            name: m.company_name,
+          },
         }
       })
-
-      // Sort by last message time
-      enriched.sort((a, b) => {
+      .sort((a, b) => {
         const aTime = a.lastMessage?.created_at || a.created_at
         const bTime = b.lastMessage?.created_at || b.created_at
         return new Date(bTime) - new Date(aTime)
       })
 
-      setChats(enriched)
-      setLoading(false)
-    }
-    load()
-  }, [])
+    setChats(enriched)
+    setLoading(false)
+  }
 
   function formatTime(timestamp) {
     if (!timestamp) return ''
@@ -147,7 +119,6 @@ export default function ChatsPage({ onClose }) {
         ) : (
           chats.map(chat => {
             const hasUnread = chat.unreadCount > 0
-            const chatLocked = !chat.chat_enabled
             const chatEnded = chat.chat_ended
             const initials = chat.otherUser?.full_name
               ? chat.otherUser.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -156,43 +127,20 @@ export default function ChatsPage({ onClose }) {
             return (
               <div
                 key={chat.id}
-                onClick={() => {
-                  if (!chatLocked) window.location.href = `/chat?match=${chat.id}`
-                }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '14px 16px',
-                  background: hasUnread ? '#f0faf6' : '#fff',
-                  borderBottom: '0.5px solid rgba(0,0,0,0.06)',
-                  cursor: chatLocked ? 'default' : 'pointer',
-                  opacity: chatLocked ? 0.6 : 1,
-                }}
+                onClick={() => window.location.href = `/chat?match=${chat.id}`}
+                style={{ padding: '14px 16px', borderBottom: '0.5px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', background: hasUnread ? '#f0faf6' : '#fff' }}
               >
                 {/* Avatar */}
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{
-                    width: '46px', height: '46px', borderRadius: '50%',
-                    background: '#E1F5EE', color: '#085041',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontWeight: '500', fontSize: '15px', overflow: 'hidden',
-                  }}>
-                    {chat.otherUser?.avatar_url ? (
-                      <img src={chat.otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : initials}
-                  </div>
-                  {hasUnread && (
-                    <div style={{
-                      position: 'absolute', top: '0', right: '0',
-                      width: '14px', height: '14px', borderRadius: '50%',
-                      background: '#E24B4A', border: '2px solid #fff',
-                    }} />
-                  )}
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#E1F5EE', color: '#085041', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '500', fontSize: '14px', flexShrink: 0, overflow: 'hidden' }}>
+                  {chat.otherUser?.avatar_url ? (
+                    <img src={chat.otherUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : initials}
                 </div>
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                    <div style={{ fontSize: '14px', fontWeight: hasUnread ? '500' : '400', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                    <div style={{ fontSize: '14px', fontWeight: hasUnread ? '600' : '500', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {chat.otherUser?.full_name || 'Unknown'}
                     </div>
                     <div style={{ fontSize: '11px', color: '#aaa', flexShrink: 0, marginLeft: '8px' }}>
@@ -202,7 +150,6 @@ export default function ChatsPage({ onClose }) {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ fontSize: '13px', color: hasUnread ? '#085041' : '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, fontWeight: hasUnread ? '500' : '400' }}>
                       {chatEnded ? 'Chat ended' :
-                       chatLocked ? 'Waiting for insider to start chat...' :
                        chat.lastMessage ? (
                          chat.lastMessage.sender_id === currentUserId ? `You: ${chat.lastMessage.content}` : chat.lastMessage.content
                        ) : 'No messages yet'}

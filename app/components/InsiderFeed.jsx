@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import Badge from './ui/Badge'
 import Card from './ui/Card'
+import { buildSeekerFeedBadges } from '../../lib/badges'
 
 export default function InsiderFeed() {
   const [insiderProfile, setInsiderProfile] = useState(null)
@@ -63,7 +64,28 @@ export default function InsiderFeed() {
         .eq('seeking_status', 'Actively seeking referrals')
         .limit(20)
 
-      setSeekers(seekerProfiles || [])
+      if (!seekerProfiles || seekerProfiles.length === 0) {
+        setSeekers([])
+        setLoading(false)
+        return
+      }
+
+      // Load education + employment for all seekers in one query each
+      const seekerIds = seekerProfiles.map(s => s.user_id)
+
+      const [{ data: allEducation }, { data: allEmployment }] = await Promise.all([
+        supabase.from('education').select('*').in('user_id', seekerIds),
+        supabase.from('employment').select('*').in('user_id', seekerIds),
+      ])
+
+      // Enrich each seeker with their education + employment
+      const enriched = seekerProfiles.map(s => ({
+        ...s,
+        education: allEducation?.find(e => e.user_id === s.user_id) || null,
+        employment: allEmployment?.filter(e => e.user_id === s.user_id) || [],
+      }))
+
+      setSeekers(enriched)
       setLoading(false)
     }
     load()
@@ -274,18 +296,23 @@ export default function InsiderFeed() {
                   )}
                 </div>
 
-                {/* Badges */}
-                {badges.length > 0 && (
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                    {badges.map(b => (
-                      <Badge
-                        key={b.badge_type}
-                        label={b.badge_type === 'community_verified' ? 'Community Verified' : b.badge_type === 'portfolio_linked' ? 'Portfolio Linked' : b.badge_type}
-                        color={b.badge_type === 'community_verified' ? 'teal' : b.badge_type === 'portfolio_linked' ? 'amber' : 'gray'}
-                      />
-                    ))}
-                  </div>
-                )}
+                {/* Dynamic badges */}
+                {(() => {
+                  const dynamicBadges = buildSeekerFeedBadges({
+                    badges: seeker.badges || [],
+                    seekerProfile: seeker,
+                    education: seeker.education,
+                    employment: seeker.employment || [],
+                    featuredEducation: seeker.featured_education || null,
+                  })
+                  return dynamicBadges.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      {dynamicBadges.map((badge, i) => (
+                        <Badge key={i} label={badge.label} color={badge.color} />
+                      ))}
+                    </div>
+                  ) : null
+                })()}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '8px' }}>

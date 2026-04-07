@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import Card from './ui/Card'
 import Badge from './ui/Badge'
 
-export default function InsiderPitches() {
+export default function InsiderPitches({ onPitchResolved }) {
   const [pitches, setPitches] = useState([])
   const [loading, setLoading] = useState(true)
   const [responding, setResponding] = useState(null)
@@ -88,8 +88,20 @@ export default function InsiderPitches() {
 
       if (error) throw error
 
-      // Remove from list
       setPitches(prev => prev.filter(p => p.id !== pitch.id))
+      onPitchResolved?.()
+
+      // Send email notification to seeker
+      fetch('/api/send-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'pitch_accepted',
+          recipientId: pitch.seeker_id,
+          data: { companyName: pitch.company?.name },
+        }),
+      })
+
       alert(`Match made! A chat has opened with ${pitch.seeker?.full_name}.`)
     } catch (err) {
       alert('Error accepting pitch. Please try again.')
@@ -119,8 +131,25 @@ export default function InsiderPitches() {
 
       setPitches(prev => prev.filter(p => p.id !== pitch.id))
       setShowDeclineForm(null)
-      setDeclineReason('')
+      setDeclineReasons([])
       setDeclineComment('')
+      onPitchResolved?.()
+
+      // Send email notification to seeker
+      fetch('/api/send-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'pitch_declined',
+          recipientId: pitch.seeker_id,
+          data: {
+            companyName: pitch.company?.name,
+            reasons: declineReasons,
+            comment: declineComment || null,
+          },
+        }),
+      })
+
       alert('Pitch declined. The seeker has been notified with your reason.')
     } catch (err) {
       alert('Error declining pitch. Please try again.')
@@ -308,7 +337,7 @@ export default function InsiderPitches() {
                             background: declineReasons.length > 0 ? '#A32D2D' : '#D3D1C7',
                             color: '#fff', border: 'none',
                             fontFamily: 'DM Sans, sans-serif', fontSize: '13px',
-                            fontWeight: '500', cursor: declineReason ? 'pointer' : 'not-allowed',
+                            fontWeight: '500', cursor: declineReasons.length > 0 ? 'pointer' : 'not-allowed',
                           }}
                         >
                           {responding === pitch.id ? 'Declining...' : 'Confirm decline'}

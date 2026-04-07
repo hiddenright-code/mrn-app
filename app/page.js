@@ -80,7 +80,7 @@ export default function Home() {
         setPitchCount(count || 0)
       }
 
-      // Load unread message count for both roles
+      // Load unread message count
       const { data: userMatches } = await supabase
         .from('matches')
         .select('id')
@@ -95,6 +95,18 @@ export default function Home() {
           .eq('is_read', false)
           .neq('sender_id', session.user.id)
         setUnreadCount(unread || 0)
+      }
+
+      // Load unread pipeline notifications (submitted stage updates)
+      const { count: pipelineUnread } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', session.user.id)
+        .eq('type', 'pipeline_update')
+        .eq('read', false)
+
+      if (pipelineUnread > 0) {
+        setUnreadCount(prev => prev + pipelineUnread)
       }
 
       setAuthChecked(true)
@@ -119,7 +131,7 @@ export default function Home() {
     if (!role || !page) return null
     if (role === 'insider') {
       if (page === 'feed')    return <InsiderFeed />
-      if (page === 'pitches') return <InsiderPitches />
+      if (page === 'pitches') return <InsiderPitches onPitchResolved={() => setPitchCount(prev => Math.max(0, prev - 1))} />
       if (page === 'matches') return <InsiderMatches />
       if (page === 'profile') return <InsiderProfile />
     }
@@ -226,10 +238,44 @@ export default function Home() {
         </div>
 
         {/* Bottom Nav */}
-        <BottomNav role={role} page={page} pitchCount={pitchCount} unreadCount={unreadCount} setPage={(p) => {
+        <BottomNav role={role} page={page} pitchCount={pitchCount} unreadCount={unreadCount} setPage={async (p) => {
           setPage(p)
           sessionStorage.setItem('mrn_last_page', p)
           sessionStorage.setItem('mrn_last_role', role)
+
+          // Clear pipeline notifications when seeker visits matches
+          if (p === 'matches' && role === 'seeker') {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session) {
+              await supabase
+                .from('notifications')
+                .update({ read: true })
+                .eq('user_id', session.user.id)
+                .eq('type', 'pipeline_update')
+                .eq('read', false)
+              setUnreadCount(prev => {
+                // Recalculate by removing pipeline notifications
+                return Math.max(0, prev)
+              })
+              // Re-query to get accurate count after clearing
+              const { data: userMatches } = await supabase
+                .from('matches')
+                .select('id')
+                .or(`seeker_id.eq.${session.user.id},insider_id.eq.${session.user.id}`)
+              if (userMatches?.length > 0) {
+                const matchIds = userMatches.map(m => m.id)
+                const { count: unread } = await supabase
+                  .from('messages')
+                  .select('*', { count: 'exact', head: true })
+                  .in('match_id', matchIds)
+                  .eq('is_read', false)
+                  .neq('sender_id', session.user.id)
+                setUnreadCount(unread || 0)
+              } else {
+                setUnreadCount(0)
+              }
+            }
+          }
         }} />
 
         {/* Pitch Sheet */}

@@ -10,12 +10,27 @@ export default function SeekerCompanies({ onPitch }) {
 
   useEffect(() => {
     async function loadCompanies() {
-      const { data, error } = await supabase
-        .from('companies')
-        .select('*')
-        .order('name')
+      const [{ data: companiesData, error }, { data: insiderData }] = await Promise.all([
+        supabase.from('companies').select('*').order('name'),
+        supabase.from('insider_profiles')
+          .select('company, user_id, avatar_url:user_id(avatar_url)')
+          .eq('open_to_referring', true)
+      ])
 
-      if (!error) setCompanies(data || [])
+      if (error) { setLoading(false); return }
+
+      // Build a map of company name → list of insiders
+      const insidersByCompany = {}
+      for (const insider of insiderData || []) {
+        const key = insider.company
+        if (!insidersByCompany[key]) insidersByCompany[key] = []
+        insidersByCompany[key].push(insider)
+      }
+
+      setCompanies((companiesData || []).map(c => ({
+        ...c,
+        insiders: insidersByCompany[c.name] || [],
+      })))
       setLoading(false)
     }
     loadCompanies()
@@ -106,24 +121,35 @@ export default function SeekerCompanies({ onPitch }) {
                   </div>
                 </div>
 
-                {/* Insider count — placeholder until we have real insiders */}
+                {/* Real insider count */}
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '10px' }}>
-                  <div style={{ display: 'flex' }}>
-                    {[0, 1, 2].map(i => (
-                      <div key={i} style={{
-                        width: '22px', height: '22px', borderRadius: '50%',
-                        border: '1.5px solid #fff',
-                        background: ['#E1F5EE', '#FAEEDA', '#EEEDFE'][i],
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '9px', marginLeft: i === 0 ? '0' : '-5px',
-                      }}>
-                        🔒
+                  {company.insiders.length === 0 ? (
+                    <span style={{ fontSize: '12px', color: '#aaa' }}>No insiders yet</span>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex' }}>
+                        {company.insiders.slice(0, 3).map((insider, i) => (
+                          <div key={insider.user_id} style={{
+                            width: '22px', height: '22px', borderRadius: '50%',
+                            border: '1.5px solid #fff',
+                            background: ['#E1F5EE', '#FAEEDA', '#EEEDFE'][i % 3],
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '9px', marginLeft: i === 0 ? '0' : '-5px',
+                            overflow: 'hidden', flexShrink: 0,
+                          }}>
+                            {insider.avatar_url ? (
+                              <img src={insider.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : '🔒'}
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <span style={{ fontSize: '12px', color: '#085041', fontWeight: '500' }}>
-                    Insiders available
-                  </span>
+                      <span style={{ fontSize: '12px', color: '#085041', fontWeight: '500' }}>
+                        {company.insiders.length === 1
+                          ? '1 insider available'
+                          : `${company.insiders.length} insiders available`}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Badges */}

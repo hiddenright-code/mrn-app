@@ -65,7 +65,75 @@ export default function PitchSheet({ company, onClose }) {
 
       const seekerId = session.user.id
 
-      // Check if pitch already exists
+
+      // Load seeker's badges to determine weekly pitch limit
+      const { data: seekerBadges } = await supabase
+        .from('badges')
+        .select('badge_type')
+        .eq('user_id', seekerId)
+
+      const hasPortfolioLinked = seekerBadges?.some(b => b.badge_type === 'portfolio_linked')
+      const hasCommunityVerified = seekerBadges?.some(b => b.badge_type === 'community_verified')
+      const weeklyLimit = hasPortfolioLinked ? 6 : hasCommunityVerified ? 4 : 3
+
+      // Rate limit — rolling 7 day window
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      const { count: recentPitchCount } = await supabase
+        .from('pitches')
+        .select('*', { count: 'exact', head: true })
+        .eq('seeker_id', seekerId)
+        .gte('created_at', sevenDaysAgo.toISOString())
+
+      if (recentPitchCount >= weeklyLimit) {
+        const { data: oldestPitch } = await supabase
+          .from('pitches')
+          .select('created_at')
+          .eq('seeker_id', seekerId)
+          .gte('created_at', sevenDaysAgo.toISOString())
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single()
+
+        const resetDate = new Date(oldestPitch.created_at)
+        resetDate.setDate(resetDate.getDate() + 7)
+        const resetStr = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        setError(`You've reached your weekly pitch limit of ${weeklyLimit}. Your limit resets on ${resetStr}.`)
+        setLoading(false)
+        return
+      }
+
+      // Company cooldown — max 2 pitches per company per 30 days
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      const { count: companyPitchCount } = await supabase
+        .from('pitches')
+        .select('*', { count: 'exact', head: true })
+        .eq('seeker_id', seekerId)
+        .eq('company_id', companyId)
+        .gte('created_at', thirtyDaysAgo.toISOString())
+
+      if (companyPitchCount >= 2) {
+        const { data: latestCompanyPitch } = await supabase
+          .from('pitches')
+          .select('created_at')
+          .eq('seeker_id', seekerId)
+          .eq('company_id', companyId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        const cooldownEnd = new Date(latestCompanyPitch.created_at)
+        cooldownEnd.setDate(cooldownEnd.getDate() + 30)
+        const cooldownStr = cooldownEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        setError(`You've pitched 2 insiders at ${company} recently. You can pitch again here after ${cooldownStr}.`)
+        setLoading(false)
+        return
+      }
+
+      // Check if pitch already exists to same insider
       const { data: existing } = await supabase
         .from('pitches')
         .select('id')
