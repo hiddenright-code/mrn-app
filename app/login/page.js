@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
 export default function LoginPage() {
@@ -10,6 +10,16 @@ export default function LoginPage() {
   const [unconfirmed, setUnconfirmed] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
   const [resendSuccess, setResendSuccess] = useState(false)
+  const [banned, setBanned] = useState(false)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('banned') === 'true') setBanned(true)
+    const err = params.get('error')
+    if (err === 'confirmation_failed') {
+      setError('Confirmation failed or link expired. Please try signing up again.')
+    }
+  }, [])
 
   async function handleLogin() {
     if (!email || !password) {
@@ -126,6 +136,17 @@ export default function LoginPage() {
                   {resendLoading ? 'Sending...' : 'Resend confirmation email'}
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Banned account message */}
+          {banned && (
+            <div style={{
+              background: '#FCEBEB', border: '0.5px solid #F09595',
+              borderRadius: '8px', padding: '10px 14px',
+              fontSize: '13px', color: '#A32D2D', marginBottom: '16px',
+            }}>
+              Your account has been suspended. Contact <a href="mailto:legal@mrn.app" style={{ color: '#A32D2D', fontWeight: '500' }}>legal@mrn.app</a> if you believe this is a mistake.
             </div>
           )}
 

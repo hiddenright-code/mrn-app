@@ -399,8 +399,8 @@ export default function SeekerMatches() {
             </div>
           ))}
 
-          {/* Declined pitches */}
-          {pitches.filter(p => p.status === 'declined' && !p.is_archived).map(pitch => (
+          {/* Declined pitches — only show on active tab */}
+          {activeTab === 'active' && pitches.filter(p => p.status === 'declined' && !p.is_archived).map(pitch => (
             <div key={pitch.id} style={{ background: '#fff', border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: '#FCEBEB', color: '#A32D2D', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '13px', flexShrink: 0 }}>

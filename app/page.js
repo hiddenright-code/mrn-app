@@ -33,15 +33,21 @@ export default function Home() {
 
       const { data: user } = await supabase
         .from('users')
-        .select('onboarding_complete, role')
+        .select('onboarding_complete, role, is_banned')
         .eq('id', session.user.id)
         .single()
+
+      // Ban check — sign out and redirect with message
+      if (user?.is_banned) {
+        await supabase.auth.signOut()
+        window.location.href = '/login?banned=true'
+        return
+      }
 
       if (!user?.onboarding_complete) {
         window.location.href = '/onboarding'
         return
       }
-
       const dbRole = user?.role || 'seeker'
       setUserRole(dbRole)
 

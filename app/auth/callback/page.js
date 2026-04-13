@@ -23,6 +23,7 @@ export default function AuthCallback() {
             .eq('id', session.user.id)
             .single()
 
+          // If user row doesn't exist yet, trigger was slow — go to onboarding anyway
           if (user?.onboarding_complete) {
             window.location.href = '/'
           } else {
@@ -30,8 +31,14 @@ export default function AuthCallback() {
           }
         } else {
           // No session yet — wait for Supabase to process the token
+          // Add timeout so we don't spin forever
+          const timeout = setTimeout(() => {
+            window.location.href = '/login?error=confirmation_failed'
+          }, 10000)
+
           supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_IN' && session) {
+              clearTimeout(timeout)
               supabase
                 .from('users')
                 .select('onboarding_complete')

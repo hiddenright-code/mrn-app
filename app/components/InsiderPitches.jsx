@@ -135,6 +135,15 @@ export default function InsiderPitches({ onPitchResolved }) {
       setDeclineComment('')
       onPitchResolved?.()
 
+      // In-app notification for seeker
+      await supabase.from('notifications').insert({
+        user_id: pitch.seeker_id,
+        type: 'pitch_declined',
+        message: `Your pitch to ${pitch.company?.name} was not accepted. Check your matches page for the reason.`,
+        read: false,
+        related_id: pitch.id,
+      })
+
       // Send email notification to seeker
       fetch('/api/send-notification', {
         method: 'POST',
